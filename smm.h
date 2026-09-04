@@ -24,6 +24,7 @@ int find_hole(int size);
 void add_hole(int base, int size);
 void remove_hole(int base);
 void merge_holes();
+void free_holes();
 
 int get_base_address(int pid);
 int find_empty_row();

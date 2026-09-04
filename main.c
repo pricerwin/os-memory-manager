@@ -41,5 +41,6 @@ int main(int argc, char* argv[]){
 		printf("%4d | %2d | %3d\n", addr, cell.op, cell.arg);
 	}
 	
+	free_holes();
 	return 0;
 }

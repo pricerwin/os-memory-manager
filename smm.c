@@ -67,6 +67,8 @@ void deallocate(int pid){
 			int base = allocation_table[i][1];
 			int size = allocation_table[i][2];
 
+			allocation_table[i][0] = -1;
+			allocation_table[i][1] = 0;
 			allocation_table[i][2] = 0;
 
 			add_hole(base, size);
@@ -156,6 +158,16 @@ void remove_hole(int base){
 		}
 		current = current->next;
 	}
+}
+
+void free_holes(){
+    struct Hole* current = head_hole;
+    while(current != NULL){
+        struct Hole* next = current->next;
+        free(current);
+        current = next;
+    }
+    head_hole = NULL;
 }
 
 
