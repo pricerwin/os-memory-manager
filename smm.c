@@ -24,20 +24,22 @@ int find_hole(int size){
 }
 
 int allocate(int pid, int size){
-	int base = find_hole(size);
-	if(base == -1){
-		printf("SMM Error: PID %d rejection - No hole large enough for size %d\n", pid, size);
-		return 0;
-	}
+    int row = find_empty_row();
+    if(row == -1){
+        printf("SMM Error: PID %d rejection - Allocation table full\n", pid);
+        return 0;
+    }
 
-	int row = find_empty_row();
-	if(row != -1){
-		allocation_table[row][0] = pid;
-		allocation_table[row][1] = base;
-		allocation_table[row][2] = size;
-		return 1;
-	}
-	return 0;
+    int base = find_hole(size);
+    if(base == -1){
+        printf("SMM Error: PID %d rejection - No hole large enough for size %d\n", pid, size);
+        return 0;
+    }
+
+    allocation_table[row][0] = pid;
+    allocation_table[row][1] = base;
+    allocation_table[row][2] = size;
+    return 1;
 }
 
 int is_allowed_address(int pid, int addr){
