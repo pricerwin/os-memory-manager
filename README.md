@@ -28,11 +28,11 @@ Physical memory is modeled as `struct MemCell memory[1024]`, where each cell hol
 
 ## Memory management
 
-**Allocation — first fit.** The manager walks an address-ordered singly linked list of holes and takes the first one large enough to satisfy the request. The process is placed at the hole's base address; the hole then shrinks to reflect the space consumed, or is unlinked entirely if it was consumed exactly. A request that no hole can satisfy is rejected — the process is never created, an error is printed, and the system continues.
+**Allocation — first fit.** The manager walks an address-ordered singly linked list of holes and takes the first one large enough to satisfy the request. The process is placed at the hole's base address; the hole then shrinks to reflect the space consumed, or is unlinked entirely if it was consumed exactly. A request that no hole can satisfy is rejected — the process is never created, an error is printed, and the system continues. A rejected program does not consume a PID.
 
-**Bookkeeping — allocation table.** A 256×3 table stores the PID, base address, and size of each live process. A size of zero marks a free row, so placement is a scan for the first zero-size entry. This table is also what the permission check reads from.
+**Bookkeeping — allocation table.** A 256×3 table stores the PID, base address, and size of each live process. A size of zero marks a free row, so placement is a scan for the first zero-size entry. This table is also what the permission check reads from. Because a free table row is a prerequisite for allocation, it is checked before any memory is carved out of the free list — otherwise a full table would consume a partition that nothing recorded and nothing could reclaim.
 
-**Deallocation and coalescing.** When a process terminates, a hole matching its base and size is inserted into the list at the correct address-ordered position, and the list is then swept for adjacent holes, which are merged into one. Without this, repeated allocate/free cycles would fragment memory into a long list of unusably small gaps.
+**Deallocation and coalescing.** When a process terminates, its allocation table row is cleared, a hole matching its base and size is inserted into the list at the correct address-ordered position, and the list is then swept for adjacent holes, which are merged into one. Without this, repeated allocate/free cycles would fragment memory into a long list of unusably small gaps.
 
 **Invariant: no two holes are ever adjacent.** Insertion and merging are separate operations — `add_hole()` only inserts, and the caller is responsible for calling `merge_holes()` afterward. This matters more than it looks. Allocation identifies a fully-consumed hole by its address, which is only unambiguous because adjacent holes have already been collapsed into one. Any new code path that adds a hole without merging will break that assumption.
 
@@ -48,6 +48,7 @@ int  find_hole(int size);                  /* first-fit; carves the hole and ret
 void add_hole(int base, int size);         /* inserts in address order; does NOT merge */
 void remove_hole(int base);
 void merge_holes();                        /* collapses all adjacent holes */
+void free_holes();                         /* releases the list at shutdown */
 int  get_base_address(int pid);
 int  find_empty_row();
 int  is_allowed_address(int pid, int addr);
@@ -63,12 +64,12 @@ Round-robin with a 10-cycle time quantum. Process state is saved and restored ac
 
 ```bash
 gcc main.c smm.c -o simulator
-./simulator
+./simulator                                      # defaults to program_list_valid.txt
+./simulator program_list_invalid_allocation.txt
+./simulator program_list_invalid_access.txt
 ```
 
-Requires only a C compiler and the standard library. Developed and tested on Linux.
-
-All `.c`, `.h`, and `.txt` files must sit in the same directory. The program list filename is currently hardcoded in `main.c`, so running a different test scenario means editing that line and recompiling.
+Requires only a C compiler and the standard library. Developed and tested on Linux. All `.c`, `.h`, and `.txt` files must sit in the same directory.
 
 ## Input format
 
@@ -94,8 +95,32 @@ The instruction programs (`loop50.txt`, `loop100.txt`, `loop200_valid.txt`, `loo
 
 ## Output
 
-On exit the simulator prints the total number of holes created during the run, then dumps the opcode and argument at addresses 30, 150, and 230 — the three locations the test programs write to. The hole count includes the initial whole-memory hole created at startup, so a clean run with no deallocations reports 1.
+On exit the simulator prints the total number of holes created during the run, then dumps the opcode and argument at addresses 30, 150, and 230 — the three locations the test programs write to. The hole count includes the initial whole-memory hole created at startup, so the valid scenario reports 4: one at startup plus one per normally-terminating process.
+
+Running the protection scenario:
+
+```
+Successfully loaded loop50.txt for PID 0 at Address 0
+Successfully loaded loop100.txt for PID 1 at Address 120
+Successfully loaded loop200_invalid.txt for PID 2 at Address 200
+SMM Error: Memory access violation by PID 2 at address 30
+SMM REJECTION: PID 2 attempted illegal write at address 30
+
+--- Simulation Complete ---
+Total holes created during runtime: 4
+
+Required Memory Dump:
+Addr | OP | Arg
+----------------
+  30 |  0 |   1
+ 150 |  0 |   2
+ 230 |  0 |   0
+```
+
+PID 2 was killed trying to write into PID 0's partition, so address 230 never received its marker — while PIDs 0 and 1 ran to completion unaffected.
 
 ## Limitations
 
 Deliberately scoped to contiguous allocation, so it inherits that scheme's constraints: external fragmentation is possible even with coalescing, a process's memory can't grow after allocation, and there's no swapping or paging. First-fit was chosen for its low search cost; best-fit or a buddy allocator would trade lookup time for tighter packing. The allocation table is a fixed 256 rows and is searched linearly, and the hole list is walked from the head on every operation — both fine at this scale, neither appropriate for a real kernel.
+
+One gap worth naming: program loading runs with the protection check bypassed and does not verify that a program's instruction count fits inside its requested allocation. A program with more instructions than it reserved would overwrite the partition above it. Enforcing that at load time is the most useful next change.
