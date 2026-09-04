@@ -8,10 +8,10 @@
 
 struct MemCell memory[1024];
 
-int main(){
-	add_hole(0, 1024);
-
-	load_programs("program_list_valid.txt");
+int main(int argc, char* argv[]){
+    char* list = (argc > 1) ? argv[1] : "program_list_valid.txt";
+    add_hole(0, 1024);
+    load_programs(list);
 		
 	int total_cycles = 0;
 	int status = 1;
