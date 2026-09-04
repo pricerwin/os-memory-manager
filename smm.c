@@ -26,13 +26,13 @@ int find_hole(int size){
 int allocate(int pid, int size){
     int row = find_empty_row();
     if(row == -1){
-        printf("SMM Error: PID %d rejection - Allocation table full\n", pid);
+        printf("SMM Error: Allocation rejected - table full (requested %d units)\n", size);
         return 0;
     }
 
     int base = find_hole(size);
     if(base == -1){
-        printf("SMM Error: PID %d rejection - No hole large enough for size %d\n", pid, size);
+        printf("SMM Error: Allocation rejected - no hole large enough for %d units\n", size);
         return 0;
     }
 

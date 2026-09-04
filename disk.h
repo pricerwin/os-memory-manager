@@ -14,8 +14,6 @@ static int load_prog(char* fpath, int addr){
 	fhandle = fopen(fpath, "r");
 	if(!fhandle) return 0;
 
-	printf("%s\n", fpath);
-	
 	while(fgets(buffer, sizeof(buffer), fhandle)){
 		struct MemCell cell =  translate(buffer);
 		
@@ -53,6 +51,7 @@ void load_programs(char* fname){
 		
 			printf("Successfully loaded %s for PID %d at Address %d\n", prog_name, pid, assigned_base);
 		}else{
+			printf("Disk: Skipped %s - could not allocate %d units\n", prog_name, requested_size);
 			continue;
 		}
 	}
